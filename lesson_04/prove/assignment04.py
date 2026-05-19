@@ -1,7 +1,7 @@
 """
 Course    : CSE 351
 Assignment: 04
-Student   : <your name here>
+Student   : <Robert Lunden Vaile>
 
 Instructions:
     - review instructions in the course
@@ -17,24 +17,56 @@ recno: record number starting from 0
 
 """
 
+import threading
 import time
+import random
 from common import *
 
 from cse351 import *
 
-THREADS = 0                 # TODO - set for your program
-WORKERS = 0                 # TODO - set for your program
+THREADS = 200                # TODO - set for your program
+WORKERS = 100                 # TODO - set for your program
 RECORDS_TO_RETRIEVE = 5000  # Don't change
 
 
 # ---------------------------------------------------------------------------
-def retrieve_weather_data():
-    # TODO - fill out this thread function (and arguments)
-    ...
+def retrieve_weather_data(queue1, queue2, spaces1, items1, spaces2, items2):
+    while True:
+        items1.acquire()
+        item = queue1.get()
+        if item is None:
+            spaces1.release()
+            break
+        spaces1.release()
+        name, recno = item
+        result = get_data_from_server(f'{TOP_API_URL}/record/{name}/{recno}')
+        spaces2.acquire()
+        queue2.put((name, result['date'], result['temp']))
+        items2.release()
 
 
 # ---------------------------------------------------------------------------
 # TODO - Create Worker threaded class
+class Worker(threading.Thread):
+
+    def __init__(self, queue2, noaa, spaces, items):
+        threading.Thread.__init__(self)
+        self.queue2 = queue2
+        self.noaa = noaa
+        self.spaces = spaces
+        self.items = items
+
+    def run(self):
+        while True:
+            self.items.acquire()
+            item = self.queue2.get()
+            if item is None:
+                self.spaces.release()
+                break
+            city, date, temp = item
+            self.noaa.add_record(city, date, temp)
+            self.spaces.release()
+
 
 
 # ---------------------------------------------------------------------------
@@ -42,10 +74,19 @@ def retrieve_weather_data():
 class NOAA:
 
     def __init__(self):
-        ...
+        self.data = {} #the dictionary that holds cities and temps
+        self.lock = threading.Lock() #THE LOCK
+
+    def add_record(self, city, date, temp):
+        with self.lock: #Where the LOCK is
+            if city not in self.data: #adds city to dictionary if its not there
+                self.data[city] = [] 
+            self.data[city].append(temp) #adds the temps to the city
 
     def get_temp_details(self, city):
-        return 0.0
+        temps = self.data[city]
+        average = sum(temps)/len(temps) #gets the average of the temps for the city
+        return average
 
 
 # ---------------------------------------------------------------------------
@@ -126,9 +167,48 @@ def main():
     records = RECORDS_TO_RETRIEVE
 
     # TODO - Create any queues, semaphores, locks or barriers you need
+    queue1 = Queue351()
+    queue2 = Queue351()
 
+    spaces1 = threading.Semaphore(10)
+    items1 = threading.Semaphore(0)
+    spaces2 = threading.Semaphore(10)
+    items2 = threading.Semaphore(0)
 
+    workers = []
+    threads = []
 
+    for _ in range(WORKERS):
+        w = Worker(queue2, noaa, spaces2, items2)
+        w.start()
+        workers.append(w)
+
+    for _ in range(THREADS):
+        t = threading.Thread(target=retrieve_weather_data, args=(queue1, queue2, spaces1, items1, spaces2, items2))
+        t.start()
+        threads.append(t)
+
+    for name in CITIES:
+        for i in range(records):
+            spaces1.acquire()
+            queue1.put((name, i))
+            items1.release()
+
+    for _ in range(THREADS):
+        spaces1.acquire()
+        queue1.put(None)
+        items1.release()
+
+    for t in threads:
+        t.join()
+
+    for _ in range(WORKERS):
+        spaces2.acquire()
+        queue2.put(None)
+        items2.release()
+
+    for w in workers:
+        w.join()
 
     # End server - don't change below
     data = get_data_from_server(f'{TOP_API_URL}/end')
