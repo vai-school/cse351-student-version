@@ -26,17 +26,38 @@ SCREEN_SIZE = 800
 COLOR = (0, 0, 255)
 SLOW_SPEED = 100
 FAST_SPEED = 1
-speed = SLOW_SPEED
+speed = FAST_SPEED
 
-# TODO: Add any functions needed here.
+def solve(maze, current_path, x, y):
+    current_path.append((x,y))
+    maze.move(x, y, COLOR)
+
+    if maze.at_end(x,y):
+        return current_path
+    
+    open_moves = maze.get_possible_moves(x,y)
+
+    for move in open_moves:
+        next_x = move[0]
+        next_y = move[1]
+        
+        paths = solve(maze,current_path,next_x, next_y)
+
+        if paths is not None:
+            return paths
+
+    current_path.pop()
+    maze.restore(x,y)
+    return None
 
 def solve_path(maze):
-    """ Solve the maze and return the path found between the start and end positions.  
-        The path is a list of positions, (x, y) """
-    path = []
-    # TODO: Solve the maze recursively while tracking the correct path.
 
-    # Hint: You can create an inner function to do the recursion
+    path = []
+    
+    start_position = maze.get_start_pos()
+    
+    
+    solve(maze, path, start_position[0], start_position[1])
 
     return path
 

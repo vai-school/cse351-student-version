@@ -2,7 +2,7 @@
 Course: CSE 351 
 Assignment: 08 Prove Part 2
 File:   prove_part_2.py
-Author: <Add name here>
+Author: Lunden Vaile
 
 Purpose: Part 2 of assignment 8, finding the path to the end of a maze using recursion.
 
@@ -21,14 +21,13 @@ position:
 
 What would be your strategy?
 
-<Answer here>
+
 
 Why would it work?
 
-<Answer here>
+
 
 """
-
 import math
 import threading 
 from screen import Screen
@@ -64,9 +63,9 @@ FAST_SPEED = 0
 
 # Globals
 current_color_index = 0
-thread_count = 0
+thread_count = 1
 stop = False
-speed = SLOW_SPEED
+speed = FAST_SPEED
 
 def get_color():
     """ Returns a different color when called """
@@ -77,8 +76,33 @@ def get_color():
     current_color_index += 1
     return color
 
+def worker(maze, x, y, color):
+    global stop, thread_count
+    while not stop:
 
-# TODO: Add any function(s) you need, if any, here.
+        maze.move(x, y, color)
+        
+        valid_move = maze.get_possible_moves(x, y)
+
+        if maze.at_end(x,y):
+            stop = True
+            return
+
+        if not valid_move:
+            return
+
+        next_move = valid_move.pop()
+
+        if len(valid_move) > 0:
+            threads = []
+            for move in valid_move:
+                t = threading.Thread(target=worker, args=(maze, move[0], move[1], get_color()))
+                t.start()
+                thread_count += 1
+                threads.append(t)
+        
+        x, y = next_move
+
 
 
 def solve_find_end(maze):
@@ -86,6 +110,10 @@ def solve_find_end(maze):
     # When one of the threads finds the end position, stop all of them.
     global stop
     stop = False
+
+    start_position = maze.get_start_pos()
+
+    worker(maze,start_position[0],start_position[1],get_color())
 
 
 
@@ -157,4 +185,5 @@ def main():
 
 
 if __name__ == "__main__":
+
     main()
