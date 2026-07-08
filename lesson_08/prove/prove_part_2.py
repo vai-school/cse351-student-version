@@ -21,11 +21,12 @@ position:
 
 What would be your strategy?
 
-
+Each thread has a list of where its been and when a thread is created it inherits the list of coords. 
+when a thread hits the end then the solution itself would be the coord list.
 
 Why would it work?
 
-
+Because when the thread hits the end then you know that it has the correct path. 
 
 """
 import math
@@ -76,9 +77,10 @@ def get_color():
     current_color_index += 1
     return color
 
-def worker(maze, x, y, color):
+def worker(maze, x, y, color, count_lock):
     global stop, thread_count
-    while not stop:
+    threads = []
+    if not stop:
 
         maze.move(x, y, color)
         
@@ -86,23 +88,25 @@ def worker(maze, x, y, color):
 
         if maze.at_end(x,y):
             stop = True
-            return
+        else:
 
-        if not valid_move:
-            return
+            if valid_move:
+                
 
-        next_move = valid_move.pop()
+                next_move = valid_move.pop()
 
-        if len(valid_move) > 0:
-            threads = []
-            for move in valid_move:
-                t = threading.Thread(target=worker, args=(maze, move[0], move[1], get_color()))
-                t.start()
-                thread_count += 1
-                threads.append(t)
-        
-        x, y = next_move
+                if len(valid_move) > 0:
+                    for move in valid_move:
 
+                        t = threading.Thread(target=worker, args=(maze, move[0], move[1], get_color(), count_lock))
+                        t.start()
+                        with count_lock:
+                            thread_count += 1
+                        threads.append(t)
+                
+                worker(maze, next_move[0], next_move[1], color, count_lock)
+    for t in threads:
+        t.join()
 
 
 def solve_find_end(maze):
@@ -113,7 +117,8 @@ def solve_find_end(maze):
 
     start_position = maze.get_start_pos()
 
-    worker(maze,start_position[0],start_position[1],get_color())
+    count_lock = threading.Lock()
+    worker(maze,start_position[0],start_position[1],get_color(),count_lock)
 
 
 
