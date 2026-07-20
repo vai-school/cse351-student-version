@@ -2,8 +2,7 @@
 Course: CSE 251 
 Assignment: 08 Prove Part 1
 File:   prove_part_1.py
-Author: <Add name here>
-
+Author: Robert Vaile
 Purpose: Part 1 of assignment 8, finding the path to the end of a maze using recursion.
 
 Instructions:
