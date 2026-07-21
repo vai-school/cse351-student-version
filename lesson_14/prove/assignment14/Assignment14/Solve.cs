@@ -45,17 +45,153 @@ public static class Solve
     // =======================================================================================================
     public static async Task<bool> DepthFS(long familyId, Tree tree)
     {
-        // Note: invalid IDs are zero not null
-
-        // TODO - add you solution here
+        object treeLock = new object();
+        await DepthWorker(familyId, tree, treeLock);
         return true;
+    }
+
+    private static async Task<bool> DepthWorker(long familyId, Tree tree, object treeLock)
+    {
+        List<Task<bool>> tasks = [];
+        List<Person?> people = [];
+        List<Task<Person?>> workers = [];
+
+        Family? fam = await FetchFamilyAsync(familyId);
+
+        if (fam is not null){
+
+            lock (treeLock)
+                tree.AddFamily(fam);
+
+            List<long> member_ids = [];
+            member_ids.Add(fam.HusbandId);
+            member_ids.Add(fam.WifeId);
+            member_ids.AddRange(fam.Children);
+
+            foreach (long pid in member_ids){
+                Task<Person?> worker = FetchPersonAsync(pid);
+                workers.Add(worker);
+            }
+
+            await Task.WhenAll(workers); 
+
+            foreach (var task in workers)
+            {
+                people.Add(task.Result);
+            }
+
+            foreach (Person? person in people)
+            {
+                if (person is not null)
+                {
+                   long momDadId = person.ParentId;
+
+                   lock (treeLock)
+                    {
+                        if (!tree.DoesFamilyExist(momDadId)&& momDadId != 0)
+                        {
+                            Task<bool> task = DepthWorker(momDadId, tree, treeLock);
+                            tasks.Add(task);
+                        }
+                    } 
+                }
+            }
+
+
+            lock(treeLock){
+                foreach (Person? person in people){
+                    if (person is not null) 
+                        if (!tree.DoesPersonExist(person.Id))
+                            tree.AddPerson(person);
+                }
+            }
+        }
+
+        await Task.WhenAll(tasks);
+
+        return true;
+
     }
 
     // =======================================================================================================
     public static async Task<bool> BreadthFS(long famid, Tree tree)
     {
-        // Note: invalid IDs are zero not null
-        // TODO - add you solution here
+        object treeLock = new object();
+        ConcurrentQueue<long> familyIds = new ConcurrentQueue<long>();
+
+        familyIds.Enqueue(famid);
+
+        while(!familyIds.IsEmpty){
+            List<Task<bool>> tasks = [];
+            while (!familyIds.IsEmpty)
+            {
+                if (familyIds.TryDequeue(out long famId))
+                {
+                    Task<bool> task = BreadthWorker(famId, tree, treeLock, familyIds);
+                    tasks.Add(task);
+                }
+            }
+            await Task.WhenAll(tasks);
+        }
         return true;
     }
+    private static async Task<bool> BreadthWorker(long familyId, Tree tree, object treeLock, ConcurrentQueue<long> familyIds)
+    {
+        List<Person?> people = [];
+        List<Task<Person?>> workers = [];
+
+        Family? fam = await FetchFamilyAsync(familyId);
+
+        if (fam is not null){
+
+            lock (treeLock)
+                tree.AddFamily(fam);
+
+            List<long> member_ids = [];
+            member_ids.Add(fam.HusbandId);
+            member_ids.Add(fam.WifeId);
+            member_ids.AddRange(fam.Children);
+
+            foreach (long pid in member_ids){
+                Task<Person?> worker = FetchPersonAsync(pid);
+                workers.Add(worker);
+            }
+
+            await Task.WhenAll(workers); 
+
+            foreach (var task in workers)
+            {
+                people.Add(task.Result);
+            }
+
+            foreach (Person? person in people)
+            {
+                if (person is not null)
+                {
+                   long momDadId = person.ParentId;
+
+                   lock (treeLock)
+                    {
+                        if (!tree.DoesFamilyExist(momDadId)&& momDadId != 0)
+                            familyIds.Enqueue(momDadId);
+                           
+                    } 
+                }
+            }
+
+
+            lock(treeLock){
+                foreach (Person? person in people){
+                    if (person is not null) 
+                        if (!tree.DoesPersonExist(person.Id))
+                            tree.AddPerson(person);
+                }
+            }
+        }
+
+        return true;
+
+    }
+
+
 }
